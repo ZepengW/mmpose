@@ -98,7 +98,7 @@ def main():
     # test a single image, with a list of bboxes.
 
     # optional
-    return_heatmap = False
+    return_heatmap = True
 
     # e.g. use ('backbone', ) to return backbone feature
     output_layer_names = None
@@ -113,6 +113,7 @@ def main():
         dataset_info=dataset_info,
         return_heatmap=return_heatmap,
         outputs=output_layer_names)
+    print(type(pose_results))
 
     if args.out_img_root == '':
         out_file = None

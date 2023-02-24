@@ -12,6 +12,8 @@ try:
     has_mmdet = True
 except (ImportError, ModuleNotFoundError):
     has_mmdet = False
+from tqdm import tqdm
+import numpy as np 
 
 
 def main():
@@ -61,13 +63,17 @@ def main():
         type=int,
         default=1,
         help='Link thickness for visualization')
+    parser.add_argument(
+        '--out_kp_root',
+        type=str,
+        default=''
+    )
 
     assert has_mmdet, 'Please install mmdet to run the demo.'
 
     args = parser.parse_args()
 
     assert args.show or (args.out_img_root != '')
-    assert args.img != ''
     assert args.det_config is not None
     assert args.det_checkpoint is not None
 
@@ -87,52 +93,74 @@ def main():
     else:
         dataset_info = DatasetInfo(dataset_info)
 
-    image_name = os.path.join(args.img_root, args.img)
-
-    # test a single image, the resulting box is (x1, y1, x2, y2)
-    mmdet_results = inference_detector(det_model, image_name)
-
-    # keep the person class bounding boxes.
-    person_results = process_mmdet_results(mmdet_results, args.det_cat_id)
-
-    # test a single image, with a list of bboxes.
-
-    # optional
-    return_heatmap = True
-
-    # e.g. use ('backbone', ) to return backbone feature
-    output_layer_names = None
-
-    pose_results, returned_outputs = inference_top_down_pose_model(
-        pose_model,
-        image_name,
-        person_results,
-        bbox_thr=args.bbox_thr,
-        format='xyxy',
-        dataset=dataset,
-        dataset_info=dataset_info,
-        return_heatmap=return_heatmap,
-        outputs=output_layer_names)
-    print(type(pose_results))
-
-    if args.out_img_root == '':
-        out_file = None
+    
+    if args.img == '':
+        image_path = [os.path.join(args.img_root, image_name) for image_name in os.listdir(args.img_root)]
     else:
-        os.makedirs(args.out_img_root, exist_ok=True)
-        out_file = os.path.join(args.out_img_root, f'vis_{args.img}')
+        image_path = os.path.join(args.img_root, args.img)
 
-    # show the results
-    vis_pose_result(
-        pose_model,
-        image_name,
-        pose_results,
-        dataset=dataset,
-        dataset_info=dataset_info,
-        kpt_score_thr=args.kpt_thr,
-        radius=args.radius,
-        thickness=args.thickness,
-        show=args.show,
-        out_file=out_file)
+    batch_size = 1
+    for image_path_per in tqdm(image_path):
+        # image_path_batch = image_path[idx_begin: idx_begin + batch_size]
+        # test a single image, the resulting box is (x1, y1, x2, y2)
+        if not ('.jpg' in image_path_per):
+            continue
+
+        if args.out_img_root == '':
+            out_file = None
+        else:
+            os.makedirs(args.out_img_root, exist_ok=True)
+            os.makedirs(args.out_kp_root, exist_ok=True)
+            out_file = os.path.join(args.out_img_root, f'vis_{os.path.basename(image_path_per)}')
+            kp_path = os.path.join(args.out_kp_root, f'{os.path.basename(image_path_per)}.npy')
+
+        if os.path.isfile(out_file) and os.path.isfile(kp_path):
+            continue
+
+
+        mmdet_results = inference_detector(det_model, image_path_per)
+
+        # keep the person class bounding boxes.
+        person_results = process_mmdet_results(mmdet_results, args.det_cat_id)
+        # optional
+        return_heatmap = False
+
+        # e.g. use ('backbone', ) to return backbone feature
+        output_layer_names = None
+
+        pose_results, returned_outputs = inference_top_down_pose_model(
+            pose_model,
+            image_path_per,
+            person_results,
+            bbox_thr=args.bbox_thr,
+            format='xyxy',
+            dataset=dataset,
+            dataset_info=dataset_info,
+            return_heatmap=return_heatmap,
+            outputs=output_layer_names)
+        
+        if args.out_img_root == '':
+            out_file = None
+        else:
+            os.makedirs(args.out_img_root, exist_ok=True)
+            os.makedirs(args.out_kp_root, exist_ok=True)
+            out_file = os.path.join(args.out_img_root, f'vis_{os.path.basename(image_path_per)}')
+            kp_path = os.path.join(args.out_kp_root, f'{os.path.basename(image_path_per)}.npy')
+
+        # show the results
+        vis_pose_result(
+            pose_model,
+            image_path_per,
+            pose_results,
+            dataset=dataset,
+            dataset_info=dataset_info,
+            kpt_score_thr=args.kpt_thr,
+            radius=args.radius,
+            thickness=args.thickness,
+            show=args.show,
+            out_file=out_file)
+
+        np.save(kp_path, pose_results)
 
 
 if __name__ == '__main__':

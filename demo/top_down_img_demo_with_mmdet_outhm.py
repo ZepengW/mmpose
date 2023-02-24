@@ -103,7 +103,7 @@ def main():
     for image_path_per in tqdm(image_path):
         # image_path_batch = image_path[idx_begin: idx_begin + batch_size]
         # test a single image, the resulting box is (x1, y1, x2, y2)
-        if not ('.jpg' in image_path_per):
+        if not (('.jpg' in image_path_per) or ('.png' in image_path_per)):
             continue
 
         if args.out_img_root == '':
